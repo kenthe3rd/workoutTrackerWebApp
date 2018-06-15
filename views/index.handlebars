@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Working Out</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="/jquery/dist/jquery.js"></script>
+    <script src="/moment/moment.js"></script>
+    <script src="/jqueryui/jquery-ui.min.js"></script>
+    <link rel="stylesheet" href="/jqueryui/jquery-ui.min.css">
+    <link rel="stylesheet" href="/jqueryui/jquery-ui.theme.css">
+
+</head>
+<body>    
+    <div>
+        <h3>Add new exercise</h3>
+        <form>
+            <input type="text" id="dateArg" class="datePicker">
+            <input type="text" placeholder="Exercise name" id="nameArg">
+            <input type="number" placeholder="Number of Reps" id="repsArg">
+            <input type="number" placeholder="Weight (if applicable)" id="weightArg">
+            <input type="text" placeholder="Unit of Measurement" id="unitArg">
+            <button onclick="exerciseAdd(loadTable)">Add Exercise</button>
+        </form>
+    </div>
+    <div>
+        <h3>Completed Exercises</h3>
+        <table border="1">
+            <thead>
+                <th hidden>ID</th>
+                <th>Date</th>
+                <th>Name</th>
+                <th>Reps</th>
+                <th>Weight</th>
+                <th>Unit</th>
+                <th colspan="2">Modify Entry</th>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        $(function(){
+            $(".datePicker").datepicker();
+        });
+
+        $(document).ready(loadTable);
+        
+        function loadTable(){
+            var url = 'http://flip3.engr.oregonstate.edu:30055/loadTable';
+            var xhttp = new XMLHttpRequest();
+            var date;
+            var day;
+            var month;
+            var year;
+            xhttp.onreadystatechange = refreshTable;
+            xhttp.open('GET', url, true);
+            xhttp.send(null);
+            function refreshTable(){
+                if(xhttp.readyState === 4){
+                    $("tbody").each(function(){
+                        while(this.firstChild){
+                            this.removeChild(this.firstChild);
+                        }
+                    });
+                    var resData = JSON.parse(xhttp.responseText);
+                    for(obj in resData.exercises){
+                        $("tbody").prepend("<tr class='notUpdating'></tr>");
+                        date = new Date(resData.exercises[obj].date_worked);
+                        date = moment(date);
+                        day = date.date();
+                        month = date.month() + 1;
+                        year = date.year();
+                        $("tbody > tr:first").append("<td hidden>" + resData.exercises[obj].workout_id + "</td>");
+                        $("tbody > tr:first").append("<td>" + month + "-" + day + "-" + year + "</td>");
+                        $("tbody > tr:first").append("<td>" + resData.exercises[obj].name + "</td>");
+                        $("tbody > tr:first").append("<td>" + resData.exercises[obj].reps + "</td>");
+                        $("tbody > tr:first").append("<td>" + resData.exercises[obj].weight + "</td>");
+                        $("tbody > tr:first").append("<td>" + resData.exercises[obj].unit + "</td>");
+                        $("tbody > tr:first").append("<td><button onclick='exerciseDelete("+ resData.exercises[obj].workout_id + ", loadTable)'>DELETE</button></td>");
+                        $("tbody > tr:first").append("<td><button onclick='exerciseUpdate("+ resData.exercises[obj].workout_id + ")'>UPDATE</button></td>");
+                    }
+                }
+            }
+        }
+        function exerciseAdd(reload){
+            event.preventDefault();
+            var url = 'http://flip3.engr.oregonstate.edu:30055/add';
+            var xhttp = new XMLHttpRequest();
+            var payload = {};
+            var date = new Date(document.getElementById("dateArg").value);
+            date = moment(date);
+            var day = date.date();
+            var month = date.month() + 1;
+            var year = date.year();
+            payload.date_worked = year + "-" + month + "-" + day;
+            payload.reps = document.getElementById("repsArg").value;
+            payload.weight = document.getElementById("weightArg").value;
+            payload.name = document.getElementById("nameArg").value;
+            payload.unit = document.getElementById("unitArg").value;
+            xhttp.onreadystatechange = reload;
+            xhttp.open('POST', url, true);
+            xhttp.setRequestHeader('Content-Type', 'application/json');
+            xhttp.send(JSON.stringify(payload));
+        }
+
+        function exerciseUpdate(exerId){
+            var targetRow = $("td:first-child").filter(":contains('" + exerId + "')").parent();
+            if(targetRow.hasClass("notUpdating")){
+                targetRow.removeClass("notUpdating");
+                targetRow.addClass("updating");
+                targetRow.children().last().html("<button onclick='exerciseUpdate("+ exerId + ")'>CANCEL</button>");
+                targetRow.append("<td><input type='text' class='datePicker' value='" + targetRow.children().filter("td:eq(1)").text() + "'></td>");
+                targetRow.append("<td><input type='text' value='" + targetRow.children().filter("td:eq(2)").text() + "'></td>");
+                targetRow.append("<td><input type='number' value='" + targetRow.children().filter("td:eq(3)").text() + "'></td>");
+                targetRow.append("<td><input type='number' value='" + targetRow.children().filter("td:eq(4)").text() + "'></td>");
+                targetRow.append("<td><input type='text' value='" + targetRow.children().filter("td:eq(5)").text() + "'></td>");
+                targetRow.append("<td><button onclick='exerciseUpdate2("+ exerId + ", loadTable)'>CONFIRM UPDATE</button></td>")
+            } else {
+                targetRow.removeClass("updating");
+                targetRow.addClass("notUpdating");
+                for(var i=0; i<6; ++i){
+                    targetRow.children().last().remove();
+                }
+                targetRow.children().last().html("<button onclick='exerciseUpdate("+ exerId + ")'>UPDATE</button>");
+            }
+            $(function(){
+                $(".datePicker").datepicker();
+            });
+        }
+
+        function exerciseUpdate2(exerId, reload){
+            event.preventDefault();
+            var targetRow = $("td:first-child").filter(":contains('" + exerId + "')").parent();
+            var url = 'http://flip3.engr.oregonstate.edu:30055/update';
+            var xhttp = new XMLHttpRequest();
+            var payload = {};
+            var date = new Date(targetRow.children().filter("td:eq(8)").children().last().val());
+            date = moment(date);
+            var day = date.date();
+            var month = date.month() + 1;
+            var year = date.year();
+            payload.date_worked = year + "-" + month + "-" + day;
+            console.log(payload.date_worked);
+            payload.name = targetRow.children().filter("td:eq(9)").children().val();
+            payload.reps = targetRow.children().filter("td:eq(10)").children().val();
+            payload.weight = targetRow.children().filter("td:eq(11)").children().val();
+            payload.unit = targetRow.children().filter("td:eq(12)").children().val();
+            payload.workout_id = exerId;
+            xhttp.onreadystatechange = reload;
+            xhttp.open('POST', url, true);
+            xhttp.setRequestHeader('Content-Type', 'application/json');
+            xhttp.send(JSON.stringify(payload));
+        }
+
+        function exerciseDelete(exerId, reload){
+            event.preventDefault();
+            var url = 'http://flip3.engr.oregonstate.edu:30055/delete';
+            var xhttp = new XMLHttpRequest();
+            var payload = {};
+            payload.argument = exerId;
+            xhttp.onreadystatechange = reload;
+            xhttp.open('POST', url, true);
+            xhttp.setRequestHeader('Content-Type', 'application/json');
+            xhttp.send(JSON.stringify(payload));
+        }
+    </script>
+</body>
+</html>
